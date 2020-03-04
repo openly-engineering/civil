@@ -28,6 +28,77 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestDate_RoundTrip_JSON(t *testing.T) {
+	type TC struct {
+		Name            string
+		In              Date
+		Out             []byte
+		HasMarshalErr   bool // tests cases TBD
+		HasUnmarshalErr bool
+	}
+	tcs := []TC{
+		TC{Name: "tc0", In: Date{0, 0, 0}, Out: []byte(`"0000-00-00"`)},
+		TC{Name: "tc1", In: Date{0, 1, 1}, Out: []byte(`"0000-01-01"`)},
+		TC{Name: "tc2", In: Date{2020, 3, 4}, Out: []byte(`"2020-03-04"`)},
+		TC{Name: "tc3", In: Date{2345, 12, 25}, Out: []byte(`"2345-12-25"`)},
+		/* === ERRORS === */
+		TC{Name: "D-bad-day", In: Date{2020, 2, -1}, Out: []byte(`"2020-02--1"`),
+			HasUnmarshalErr: true},
+		TC{Name: "D-bad-month", In: Date{2020, 13, 1}, Out: []byte(`"2020-13-01"`),
+			HasUnmarshalErr: true},
+		TC{Name: "D-bad-year", In: Date{-2020, 1, 1}, Out: []byte(`"-2020-01-01"`),
+			HasMarshalErr: true},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.Name, func(*testing.T) {
+			mBytes, err := tc.In.MarshalJSON()
+			switch {
+			case tc.HasMarshalErr && err != nil: // expected error
+				t.Logf("Got expected error: %v", err)
+				return
+			case tc.HasMarshalErr && err == nil: // missing error
+				t.Fatalf("Missing error, mBytes: %v, string: %s", mBytes, string(mBytes))
+			case !tc.HasMarshalErr && err != nil: // unexpected error
+				t.Fatalf("Unexpected error: %v", err)
+			default:
+				t.Logf("no error, mBytes: %v, string: %s", mBytes, string(mBytes))
+				assert.Equal(t, tc.Out, mBytes)
+			}
+
+			if t.Failed() {
+				return
+			}
+
+			if string(mBytes) != string(tc.Out) {
+				t.Errorf("!= bytes :: json: %v, Out: %v", mBytes, tc.Out)
+				t.Errorf("!= string:: json: %s, Out: %s", string(mBytes), string(tc.Out))
+				t.Fatalf("!= In: %d", tc.In)
+			}
+			t.Logf("tc.In: %v, mBytes: %s, len(mBytes): %d, err: %v", tc.In, string(mBytes), len(mBytes), err)
+
+			// Now Unmarshal to confirm we get what we had
+			var d0 Date
+
+			err = d0.UnmarshalJSON(mBytes)
+			t.Logf("d0: %v, mBytes: %s, unmarshal err: %v", d0, string(mBytes), err)
+
+			switch {
+			case tc.HasUnmarshalErr && err != nil: // expected error
+				t.Logf("Got expected error: %v", err)
+				return
+			case tc.HasUnmarshalErr && err == nil: // missing error
+				t.Fatalf("Missing error, mBytes: %v, string: %s", mBytes, string(mBytes))
+			case !tc.HasUnmarshalErr && err != nil: // unexpected error
+				t.Fatalf("Unexpected error: %v", err)
+			default:
+				assert.Equal(t, tc.Out, mBytes)
+			}
+		})
+
+	}
+}
+
 func TestDate_MarshalJSON(t *testing.T) {
 
 	dLeap := Date{
@@ -61,7 +132,7 @@ func TestDate_UnmarshalJSON(t *testing.T) {
 	jsonInvalid := []byte(`"2020-13-40"`)
 	dInvalid := &Date{}
 	err = dInvalid.UnmarshalJSON(jsonInvalid)
-	assert.EqualError(t, err, "invalid date: parsing time \"2020-13-40\": month out of range")
+	assert.NotNil(t, err)
 }
 
 func TestDate_AddMonths(t *testing.T) {
@@ -98,6 +169,11 @@ func TestDate_Value(t *testing.T) {
 	v, err := d.Value()
 	assert.NoError(t, err)
 	assert.Equal(t, v, "2020-02-29")
+
+	d1 := Date{Year: 0, Month: 0, Day: 0}
+	v1, err1 := d1.Value()
+	assert.NoError(t, err1)
+	assert.Equal(t, v1, "0000-00-00")
 }
 
 func TestDate_Scan_String(t *testing.T) {
@@ -117,7 +193,6 @@ func TestDate_Scan_Time(t *testing.T) {
 }
 
 func TestTime_MarshalJSON(t *testing.T) {
-
 	time := Time{
 		Hour:       3,
 		Minute:     42,
@@ -128,6 +203,19 @@ func TestTime_MarshalJSON(t *testing.T) {
 	json, err := time.MarshalJSON()
 	assert.NoError(t, err)
 	assert.Equal(t, []byte(`"03:42:31.000000876"`), json)
+}
+
+func TestTime0_MarshalJSON(t *testing.T) {
+	time := Time{
+		Hour:       0,
+		Minute:     0,
+		Second:     0,
+		Nanosecond: 0,
+	}
+
+	json, err := time.MarshalJSON()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(`"00:00:00"`), json)
 }
 
 func TestTime_UnmarshalJSON(t *testing.T) {
@@ -193,6 +281,94 @@ func TestDateTime_MarshalJSON(t *testing.T) {
 	assert.Equal(t, []byte(`"2020-02-29T03:42:31.000000876"`), json)
 }
 
+func TestDateTime_RoundTrip_JSON(t *testing.T) {
+	type TC struct {
+		Name         string
+		In           DateTime
+		Out          []byte
+		MarshalErr   bool
+		UnmarshalErr bool
+	}
+
+	tcs := []TC{
+		TC{Name: "DT-zero_date-ok_time", In: DateTime{Date{0, 0, 00}, Time{3, 42, 31, 876}},
+			Out: []byte(`"0000-00-00T03:42:31.000000876"`)},
+		TC{Name: "DT-zero_date-zero_time", In: DateTime{Date{0, 0, 00}, Time{0, 0, 0, 0}},
+			Out: []byte(`"0000-00-00T00:00:00"`)},
+		TC{Name: "DT-go-zero", In: DateTime{},
+			Out: []byte(`"0000-00-00T00:00:00"`)},
+		TC{Name: "DT-leap-day", In: DateTime{Date{2020, 2, 29}, Time{3, 42, 31, 876}},
+			Out: []byte(`"2020-02-29T03:42:31.000000876"`)},
+		TC{Name: "DT-prior-xmas-day", In: DateTime{Date{2019, 12, 25}, Time{1, 2, 3, 4}},
+			Out: []byte(`"2019-12-25T01:02:03.000000004"`)},
+		TC{Name: "DT-future-xmas-day", In: DateTime{Date{2345, 12, 25}, Time{12, 23, 34, 45}},
+			Out: []byte(`"2345-12-25T12:23:34.000000045"`)},
+		TC{Name: "DT-first-day", In: DateTime{Date{0, 1, 1}, Time{}},
+			Out: []byte(`"0000-01-01T00:00:00"`)},
+		TC{Name: "DT-last-day", In: DateTime{Date{9999, 12, 31}, Time{23, 59, 59, 999999999}},
+			Out: []byte(`"9999-12-31T23:59:59.999999999"`)},
+		/* === ERRORS === */
+		TC{Name: "DT-bad-day", In: DateTime{Date{2020, 3, -4}, Time{12, 23, 34, 5}},
+			Out:          []byte(`"2020-03--4T12:23:34.000000005"`),
+			UnmarshalErr: true},
+		TC{Name: "DT-bad-month", In: DateTime{Date{2020, 13, 4}, Time{12, 23, 34, 5}},
+			Out:          []byte(`"2020-13-04T12:23:34.000000005"`),
+			UnmarshalErr: true},
+		TC{Name: "DT-bad-year", In: DateTime{Date{-2020, 3, 4}, Time{12, 23, 34, 5}},
+			Out:          []byte(`"-2020-03-04T12:23:34.000000005"`),
+			UnmarshalErr: true},
+		TC{Name: "DT-bad-hour", In: DateTime{Date{2020, 3, 4}, Time{24, 0, 0, 0}},
+			Out:          []byte(`"2020-03-04T24:00:00"`),
+			UnmarshalErr: true},
+		TC{Name: "DT-bad-minute", In: DateTime{Date{2020, 3, 4}, Time{0, -1, 0, 0}},
+			Out:          []byte(`"2020-03-04T00:-1:00"`),
+			UnmarshalErr: true},
+		TC{Name: "DT-bad-second", In: DateTime{Date{2020, 3, 4}, Time{1, 0, 75, 0}},
+			Out:          []byte(`"2020-03-04T01:00:75"`),
+			UnmarshalErr: true},
+		TC{Name: "DT-bad-ns", In: DateTime{Date{2020, 3, 4}, Time{12, 23, 34, 1231231234}},
+			Out:          []byte(`"2020-03-04T12:23:34.1231231234"`),
+			UnmarshalErr: true},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.Name, func(t *testing.T) {
+			dtBytes, err := tc.In.MarshalJSON()
+
+			switch {
+			case tc.MarshalErr && err != nil: // exected and got an error
+				t.Logf("Got expected MarshalJSON error: %v", err)
+				return
+			case tc.MarshalErr && err == nil: // missing error
+				t.Fatalf("Did not get expected error, dtBytes: %v, %s", dtBytes, string(dtBytes))
+			case !tc.MarshalErr && err != nil: // unexpected error
+				t.Fatalf("Got UNexpected error: %v", err)
+			default: // all good
+				t.Logf("No MarshalJSON error, dtBytes: %s", string(dtBytes))
+				assert.NoError(t, err)
+				assert.Equal(t, tc.Out, dtBytes)
+			}
+
+			var dt DateTime
+			err = dt.UnmarshalJSON(dtBytes)
+
+			switch {
+			case tc.UnmarshalErr && err != nil: // expected and got an error
+				t.Logf("Got expected UnmarshalJSON error: %v", err)
+				return
+			case tc.UnmarshalErr && err == nil: // missing error
+				t.Fatalf("Did not get expected error, dt: %v", dt)
+			case !tc.UnmarshalErr && err != nil: // Unexpected error
+				t.Fatalf("Got UNexpected error: %v", err)
+			default:
+				t.Logf("No UnmarshalJSON error, dt: %v", dt)
+				assert.NoError(t, err)
+				assert.Equal(t, tc.In, dt)
+			}
+		})
+	}
+}
+
 func TestDateTime_UnmarshalJSON(t *testing.T) {
 	jsonGood := []byte(`"2020-02-29T03:42:31.000000876"`)
 	datetimeGood := &DateTime{}
@@ -216,7 +392,7 @@ func TestDateTime_UnmarshalJSON(t *testing.T) {
 	jsonInvalid := []byte(`"0-02-29T03:42:31.000000876"`)
 	datetimeInvalid := &DateTime{}
 	err = datetimeInvalid.UnmarshalJSON(jsonInvalid)
-	assert.EqualError(t, err, "invalid datetime: parsing time \"0-02-29T03:42:31.000000876\" as \"2006-01-02t15:04:05.999999999\": cannot parse \"-29T03:42:31.000000876\" as \"2006\"")
+	assert.NotNil(t, err)
 }
 
 func TestDateTime_Value(t *testing.T) {
