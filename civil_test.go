@@ -147,6 +147,14 @@ func TestDate_AddMonths(t *testing.T) {
 	assert.Equal(t, Date{Year: 2021, Month: 3, Day: 1}, dLeap) // no leap day in 2021, so pushes over to 3/1
 }
 
+func TestDate_ParseDateNoDash(t *testing.T) {
+	date, err := ParseDateNoDash("20221005")
+	assert.NoError(t, err)
+	assert.Equal(t,
+		Date{Year: 2022, Month: 10, Day: 5}, date)
+
+}
+
 func TestDate_AddYears(t *testing.T) {
 	dLeap := Date{
 		Year:  2020,
