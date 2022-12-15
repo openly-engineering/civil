@@ -49,16 +49,26 @@ func DateOf(t time.Time) Date {
 }
 
 // RFC3339Date is the civil date format of RFC3339
-const RFC3339Date = "2006-01-02"
+const (
+	RFC3339Date       = "2006-01-02"
+	RFC3339DateNoDash = "20060102"
+)
 
 // ParseDate parses a string in RFC3339 full-date format and returns the date value it represents.
 func ParseDate(s string) (Date, error) {
-	const dateZero = "0000-00-00"
+	return parseDate(s, RFC3339Date, "0000-00-00")
+}
 
-	if s == dateZero {
+// ParseDateNoDash parses a string in RFC3339 full-date format, without any dashes, and returns the date value it represents.
+func ParseDateNoDash(s string) (Date, error) {
+	return parseDate(s, RFC3339DateNoDash, "00000000")
+}
+
+func parseDate(s, layout, zero string) (Date, error) {
+	if s == zero {
 		return Date{}, nil
 	}
-	t, err := time.Parse(RFC3339Date, s)
+	t, err := time.Parse(layout, s)
 	if err != nil {
 		return Date{}, err
 	}
@@ -79,9 +89,13 @@ func (d Date) IsValid() bool {
 //
 // In is always consistent with time.Date, even when time.Date returns a time
 // on a different day. For example, if loc is America/Indiana/Vincennes, then both
-//     time.Date(1955, time.May, 1, 0, 0, 0, 0, loc)
+//
+//	time.Date(1955, time.May, 1, 0, 0, 0, 0, loc)
+//
 // and
-//     civil.Date{Year: 1955, Month: time.May, Day: 1}.In(loc)
+//
+//	civil.Date{Year: 1955, Month: time.May, Day: 1}.In(loc)
+//
 // return 23:00:00 on April 30, 1955.
 //
 // In panics if loc is nil.
@@ -357,7 +371,9 @@ const RFC3339DateTime = "2006-01-02T15:04:05.999999999"
 // ParseDateTime accepts a variant of the RFC3339 date-time format that omits
 // the time offset but includes an optional fractional time, as described in
 // ParseTime. Informally, the accepted format is
-//     YYYY-MM-DDTHH:MM:SS[.FFFFFFFFF]
+//
+//	YYYY-MM-DDTHH:MM:SS[.FFFFFFFFF]
+//
 // where the 'T' may be a lower-case 't'.
 func ParseDateTime(s string) (DateTime, error) {
 	t, err := time.Parse(RFC3339DateTime, s)
@@ -385,11 +401,15 @@ func (dt DateTime) IsValid() bool {
 // If the time is missing or ambiguous at the location, In returns the same
 // result as time.Date. For example, if loc is America/Indiana/Vincennes, then
 // both
-//     time.Date(1955, time.May, 1, 0, 30, 0, 0, loc)
+//
+//	time.Date(1955, time.May, 1, 0, 30, 0, 0, loc)
+//
 // and
-//     civil.DateTime{
-//         civil.Date{Year: 1955, Month: time.May, Day: 1}},
-//         civil.Time{Minute: 30}}.In(loc)
+//
+//	civil.DateTime{
+//	    civil.Date{Year: 1955, Month: time.May, Day: 1}},
+//	    civil.Time{Minute: 30}}.In(loc)
+//
 // return 23:30:00 on April 30, 1955.
 //
 // In panics if loc is nil.
