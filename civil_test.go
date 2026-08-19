@@ -423,6 +423,22 @@ func TestDateTime_Value(t *testing.T) {
 	assert.Equal(t, "2020-02-29T03:42:31.000000876", v)
 }
 
+func TestParseTime_FractionDigits(t *testing.T) {
+	_, err := ParseTime("03:42:31.1234567890")
+	assert.Error(t, err, "10 fractional digits should be rejected")
+
+	_, err = ParseTime("03:42:31.123456789")
+	assert.NoError(t, err, "9 fractional digits should be accepted")
+}
+
+func TestParseDateTime_FractionDigits(t *testing.T) {
+	_, err := ParseDateTime("2020-02-29T03:42:31.1234567890")
+	assert.Error(t, err, "10 fractional digits should be rejected")
+
+	_, err = ParseDateTime("2020-02-29T03:42:31.123456789")
+	assert.NoError(t, err, "9 fractional digits should be accepted")
+}
+
 func TestDateTime_ScanString(t *testing.T) {
 	datetime := &DateTime{}
 	var v interface{}

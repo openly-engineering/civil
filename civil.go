@@ -251,12 +251,39 @@ func TimeOf(t time.Time) Time {
 // RFC3339Time is the civil time format of RFC3339
 const RFC3339Time = "15:04:05.999999999"
 
+// checkFraction returns an error if s contains a fractional-seconds part with
+// more than nine digits. Before Go 1.26, time.Parse returned an error for such
+// strings; Go 1.26 changed it to silently truncate instead. We validate before
+// calling Parse to preserve the pre-1.26 error behavior.
+func checkFraction(s string) error {
+	for i := 0; i < len(s); i++ {
+		if s[i] != '.' {
+			continue
+		}
+		n := 0
+		for j := i + 1; j < len(s); j++ {
+			if s[j] < '0' || s[j] > '9' {
+				break
+			}
+			n++
+		}
+		if n > 9 {
+			return fmt.Errorf("parsing time %q: fractional second has too many digits, max 9", s)
+		}
+		return nil
+	}
+	return nil
+}
+
 // ParseTime parses a string and returns the time value it represents.
 // ParseTime accepts an extended form of the RFC3339 partial-time format. After
 // the HH:MM:SS part of the string, an optional fractional part may appear,
 // consisting of a decimal point followed by one to nine decimal digits.
 // (RFC3339 admits only one digit after the decimal point).
 func ParseTime(s string) (Time, error) {
+	if err := checkFraction(s); err != nil {
+		return Time{}, err
+	}
 	t, err := time.Parse(RFC3339Time, s)
 	if err != nil {
 		return Time{}, err
@@ -386,6 +413,9 @@ const RFC3339DateTime = "2006-01-02T15:04:05.999999999"
 //
 // where the 'T' may be a lower-case 't'.
 func ParseDateTime(s string) (DateTime, error) {
+	if err := checkFraction(s); err != nil {
+		return DateTime{}, err
+	}
 	t, err := time.Parse(RFC3339DateTime, s)
 	if err != nil {
 		t, err = time.Parse("2006-01-02t15:04:05.999999999", s)
